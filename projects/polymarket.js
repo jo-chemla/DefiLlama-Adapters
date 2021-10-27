@@ -28,6 +28,7 @@ query GET_POLYMARKET($skip: Int, $block: Int) {
         orderBy: creationTimestamp
       )
        {
+        id
         creationTimestamp
         collateralToken {
           id name symbol decimals
@@ -44,6 +45,7 @@ query GET_POLYMARKET($skip: Int, $block: Int) {
 async function getMarketsLiquidity_graphql(timestamp, block, chainBlocks) {
   let scaledLiquidityParameterSum = BigNumber(0)
   let skip = 0
+  balances = {}
   // Continue querying graph while end not reached. Hard cap: skip = 5000
   while (skip !== -1) { 
     const { conditions } = await request(
@@ -56,7 +58,10 @@ async function getMarketsLiquidity_graphql(timestamp, block, chainBlocks) {
     if (conditions && conditions.length > 0) {
       conditions.forEach(condition => {
         condition.fixedProductMarketMakers.forEach(fpmm => {
+          console.log(fpmm)
           scaledLiquidityParameterSum = scaledLiquidityParameterSum.plus(BigNumber(fpmm.scaledLiquidityParameter))
+          const collat = fpmm.collateralToken.id
+          balances[collat] = BigNumber(balances[collat] | 0).plus(ffpm.collateralVolume)
         })
       })
     } 
@@ -65,7 +70,8 @@ async function getMarketsLiquidity_graphql(timestamp, block, chainBlocks) {
       skip = -1
     }
   }
-
+  console.log(`${scaledLiquidityParameterSum.div(1e6).toFixed(2)}M scaledLiquidityParameterSum to compare to balances`)
+  return balances
   return scaledLiquidityParameterSum
 }
 
@@ -90,8 +96,8 @@ async function getMarketsLiquidity_api() {
 
 async function polygon(timestamp, block, chainBlocks) {
   // Get markets liquidity using API
-  const marketsLiquidity = (await getMarketsLiquidity_api()).times(1e6)
-  //const marketsLiquidity = (await getMarketsLiquidity_graphql(timestamp, block, chainBlocks)).times(1e6)
+  //const marketsLiquidity = (await getMarketsLiquidity_api()).times(1e6)
+  const balances = (await getMarketsLiquidity_graphql(timestamp, block, chainBlocks)) // marketsLiquidity.times(1e6)
 
   // Also account for USDC held in the conditional tokens contract because a lot of positions are held outside of the LPs
   // Corresponds to open positions that should be counted as TVL (since they still represent USDC locked into the conditional tokens contract)
@@ -101,12 +107,12 @@ async function polygon(timestamp, block, chainBlocks) {
     block: chainBlocks['polygon'],
     chain: 'polygon'
   })
-  conditionalTokensUSDC = BigNumber(conditionalTokensUSDC.output)
+  //conditionalTokensUSDC = BigNumber(conditionalTokensUSDC.output)
 
   // Total open interest: the conditional tokens are held at 0x4D97DCd97eC945f40cF65F87097ACe5EA0476045 and then each market has it's own contract, the address of which is the id of the FixedProductMarketMaker
-  const tvl = marketsLiquidity.plus(conditionalTokensUSDC).toFixed(0)
-  console.log(`-----\n${marketsLiquidity.div(1e12).toFixed(8)}M of marketsLiquidity \n${conditionalTokensUSDC.div(1e12).toFixed(8)}M of conditionalTokensUSDC \nTVL: ${BigNumber(tvl).div(1e12).toFixed(2)}M\n`)
-  return {['polygon:' + polygonUsdcContract]: tvl};
+  //const tvl = marketsLiquidity.plus(conditionalTokensUSDC).toFixed(0)
+  //console.log(`-----\n${marketsLiquidity.div(1e12).toFixed(8)}M of marketsLiquidity \n${conditionalTokensUSDC.div(1e12).toFixed(8)}M of conditionalTokensUSDC \nTVL: ${BigNumber(tvl).div(1e12).toFixed(2)}M\n`)
+  return {['polygon:' + polygonUsdcContract]: conditionalTokensUSDC.output};
 }
 
 
