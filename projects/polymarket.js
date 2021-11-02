@@ -61,9 +61,10 @@ async function getMarketsLiquidity_graphql(timestamp, block, chainBlocks) {
         condition.fixedProductMarketMakers.forEach(fpmm => {
           scaledLiquidityParameterSum = scaledLiquidityParameterSum.plus(BigNumber(fpmm.scaledLiquidityParameter))
           const collat = 'polygon:' + fpmm.collateralToken.id
+          balances[collat] = (balances[collat] ? BigNumber(balances[collat]).plus(BigNumber(fpmm.liquidityParameter)) : BigNumber(fpmm.liquidityParameter)).toFixed(0)
           // TODO: FIND THE MISSING USDC! NOT CORRECT TO TAKE VOLUME
           fpmm.collateralVolume = fpmm.collateralVolume < 0? 0 : fpmm.collateralVolume
-          balances[collat] = (balances[collat] ? BigNumber(balances[collat]).plus(BigNumber(fpmm.collateralVolume)) : BigNumber(fpmm.collateralVolume)).toFixed(0)
+          // balances[collat] = (balances[collat] ? BigNumber(balances[collat]).plus(BigNumber(fpmm.collateralVolume)) : BigNumber(fpmm.collateralVolume)).toFixed(0)
           // balances[collat] = BigNumber(balances[collat] | 0).plus(BigNumber(fpmm.collateralVolume | 0)).toFixed(0)
         })
       })
@@ -73,7 +74,7 @@ async function getMarketsLiquidity_graphql(timestamp, block, chainBlocks) {
       skip = -1
     }
   }
-  console.log(`${scaledLiquidityParameterSum.div(1e6).toFixed(2)}M scaledLiquidityParameterSum to compare to balances`)
+  console.log(`${scaledLiquidityParameterSum.div(1e6).toFixed(2)}M scaledLiquidityParameterSum to compare to balances`, balances)
   return balances
   // return scaledLiquidityParameterSum
 }
@@ -100,22 +101,28 @@ async function getMarketsLiquidity_api() {
 async function polygon(timestamp, block, chainBlocks) {
   // Get markets liquidity using API
   //const marketsLiquidity = (await getMarketsLiquidity_api()).times(1e6)
-  let balances = (await getMarketsLiquidity_graphql(timestamp, block, chainBlocks)) // marketsLiquidity.times(1e6)
+  let balances_fpmmLiquidity = (await getMarketsLiquidity_graphql(timestamp, block, chainBlocks)) // marketsLiquidity.times(1e6)
+
+  console.log(`test using strapi-api: ${BigNumber(await getMarketsLiquidity_api()).div(1e6).toFixed(2)}M`)
 
   // Also account for USDC held in the conditional tokens contract because a lot of positions are held outside of the LPs
   // Corresponds to open positions that should be counted as TVL (since they still represent USDC locked into the conditional tokens contract)
-  /*
+  
   let conditionalTokensUSDC = await sdk.api.erc20.balanceOf({
     target: polygonUsdcContract,
     owner: conditionalTokensContract,
     block: chainBlocks['polygon'],
     chain: 'polygon'
   })
-  */
+  console.log(`balanceOf USDC in conditional contract: ${BigNumber(conditionalTokensUSDC.output).div(1e12).toFixed(2)}M`)
+
   //balances = {}
-  console.log('balances before conditional contract', balances)
-  await sumTokens(balances, [[polygonUsdcContract, conditionalTokensContract]], chainBlocks.polygon, 'polygon', addr=>`polygon:${addr}`)
-  console.log('balances after conditional contract', balances)
+  const balances_conditionalContract = {}
+  await sumTokens(balances_conditionalContract, [[polygonUsdcContract, conditionalTokensContract]], chainBlocks.polygon, 'polygon', addr=>`polygon:${addr}`)
+  console.log('balances_fpmmLiquidity', balances_fpmmLiquidity)
+  console.log('balances_conditionalContract', balances_conditionalContract)
+
+  // balances = {k: balances_fpmmLiquidity.get(k, 0) + balances_conditionalContract.get(k, 0) for k in set(balances_fpmmLiquidity) | set(balances_conditionalContract)}
 
   //conditionalTokensUSDC = BigNumber(conditionalTokensUSDC.output)
 
