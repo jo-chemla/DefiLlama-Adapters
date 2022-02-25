@@ -3,6 +3,7 @@ const { getBlock } = require('../helper/getBlock');
 const { chainExports } = require('../helper/exports');
 const { request, gql } = require("graphql-request");
 const { staking } = require('../helper/staking');
+const abi = require('./abi.json')
 
 const AKRO_ethereum = '0x8ab7404063ec4dbcfd4598215992dc3f8ec853d7'
 const AKRO_staking = '0x3501Ec11d205fa249f2C42f5470e137b529b35D0'
@@ -24,8 +25,6 @@ query GET_VORTEX ($block: Int) {
       isActive
   }
 }`
-const basisVault_want_abi = {"inputs":[],"name":"want","outputs":[{"internalType":"contract IERC20","name":"","type":"address"}],"stateMutability":"view","type":"function"}
-
 function chainTvl(chain) {
   return async (timestamp, ethBlock, chainBlocks) => {
     const balances = {};
@@ -41,14 +40,26 @@ function chainTvl(chain) {
     const vaults = basisVaults.filter(v => v.isActive).map(v => v.id)
     
     // Get balance of wanted Tokens for each Basis Vault
-    const tokensWanted = await sdk.api.abi.multiCall({
-      calls: vaults.map(v => ({target: v})), 
-      abi: basisVault_want_abi, 
-      chain, 
-      block
-    })
+    const [{output: tokensWanted}, {output: strategies}] = await Promise.all([
+      sdk.api.abi.multiCall({
+        calls: vaults.map(v => ({target: v})), 
+        abi: abi['basisVault_want'], 
+        chain, 
+        block
+      }),
+      sdk.api.abi.multiCall({
+        calls: vaults.map(v => ({target: v})), 
+        abi: abi['basisVault_strategy'], 
+        chain, 
+        block
+      })
+    ]) 
+    const balances_calls = tokensWanted.map((t, i) => ([
+      {target: t.output, params: vaults[i]}, 
+      {target: t.output, params: strategies[i].output}
+    ])).flat()
     const vaultsBalances = await sdk.api.abi.multiCall({
-      calls: tokensWanted.output.map((t, i) => ({target: t.output, params: vaults[i]})), 
+      calls: balances_calls, 
       abi: 'erc20:balanceOf', 
       chain, 
       block
