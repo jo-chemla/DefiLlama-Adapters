@@ -1,4 +1,5 @@
 {
     "basisVault_want": {"inputs":[],"name":"want","outputs":[{"internalType":"contract IERC20","name":"","type":"address"}],"stateMutability":"view","type":"function"},
-    "basisVault_strategy": {"inputs":[],"name":"strategy","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}
+    "basisVault_strategy": {"inputs":[],"name":"strategy","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}, 
+    "strategy_long": {"inputs":[],"name":"long","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}
 }

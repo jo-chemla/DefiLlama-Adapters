@@ -28,7 +28,7 @@ query GET_VORTEX ($block: Int) {
 function chainTvl(chain) {
   return async (timestamp, ethBlock, chainBlocks) => {
     const balances = {};
-    const block = await getBlock(timestamp, chain, chainBlocks) - 500; // subgraphs out of sync
+    const block = await getBlock(timestamp, chain, chainBlocks) - 2000; // subgraphs out of sync
     const transformAddress = id=>`${chain}:${id}`;
 
     // Get vortex BasisVaults
@@ -54,9 +54,19 @@ function chainTvl(chain) {
         block
       })
     ]) 
+    console.log(chain, 'vaults', vaults)
+    console.log(chain, 'strategies', strategies.map(s => s.output))
+    const {output: longTokens} = await sdk.api.abi.multiCall({
+      calls: strategies.map(s => ({target: s.output})), 
+      abi: abi['strategy_long'], 
+      chain, 
+      block
+    })
+    console.log('longTokens', longTokens)
     const balances_calls = tokensWanted.map((t, i) => ([
       {target: t.output, params: vaults[i]}, 
-      {target: t.output, params: strategies[i].output}
+      {target: t.output, params: strategies[i].output},
+      {target: longTokens[i].output, params: strategies[i].output},
     ])).flat()
     const vaultsBalances = await sdk.api.abi.multiCall({
       calls: balances_calls, 
